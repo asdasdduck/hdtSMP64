@@ -2,34 +2,29 @@
 
 namespace hdt
 {
-	static inline float convertFloat(const std::string& str)
+	static float convertFloat(const std::string& str)
 	{
-		// Replace decimal comma with point
 		std::string s = str;
-		size_t start_pos = s.find(",");
-		if (start_pos != std::string::npos)
-			s.replace(start_pos, 1, ".");
+		size_t pos = s.find(',');
+		if (pos != std::string::npos)
+			s.replace(pos, 1, ".");
 
-		errno = 0;  // Reinitializing the error global variable (thread-safe)
+		errno = 0;
 		float ret = strtof(s.c_str(), nullptr);
-		if (errno != 0)  // Checking if there has been an error
+		if (errno != 0)
 			throw std::string("not a float value");
 		return ret;
 	}
 
-	static inline int convertInt(const std::string& str)
+	static int convertInt(const std::string& str)
 	{
-		auto begin = str.c_str();
 		char* end;
 
 		int radix = 10;
-		if (!str.compare(0, 2, "0x")) {
+		if (!str.compare(0, 2, "0x"))
 			radix = 16;
-			begin += 2;
-		} else if (str.length() > 1 && str[0] == '0') {
-			begin += 1;
+		else if (str.length() > 1 && str[0] == '0')
 			radix = 8;
-		}
 
 		int ret = strtol(str.c_str(), &end, radix);
 		if (end != str.c_str() + str.length())
@@ -37,7 +32,7 @@ namespace hdt
 		return ret;
 	}
 
-	static inline bool convertBool(const std::string& str)
+	static bool convertBool(const std::string& str)
 	{
 		if (str == "true" || str == "1")
 			return true;
@@ -46,144 +41,88 @@ namespace hdt
 		throw std::string("not a boolean");
 	}
 
-	bool XMLReader::Inspect()
+	XMLReader::XMLReader(BYTE* data, size_t count)
 	{
-		if (Base::GetInspected() == Inspected::EmptyElementTag && isEmptyStart)
-			return isEmptyStart = false, true;
-		if (!Base::Inspect())
-			return false;
-		if (Base::GetInspected() == Inspected::EmptyElementTag)
-			isEmptyStart = true;
-		return true;
+		pugi::xml_parse_result result = m_doc.load_buffer(data, count);
+		if (!result)
+			throw std::string("XML parse error: ") + result.description();
 	}
 
-	Xml::Inspected XMLReader::GetInspected()
+	pugi::xml_node XMLReader::root() const
 	{
-		auto ret = Base::GetInspected();
-		if (ret == Inspected::EmptyElementTag) {
-			if (isEmptyStart)
-				return Inspected::StartTag;
-			return Inspected::EndTag;
-		}
-		return ret;
+		return m_doc.document_element();
 	}
 
-	void XMLReader::skipCurrentElement()
+	bool XMLReader::hasAttribute(const pugi::xml_node& node, const char* name)
 	{
-		if (GetInspected() == Inspected::EndTag)
-			return;
-
-		int currentDepth = 1;
-		while (currentDepth && Inspect()) {
-			switch (GetInspected()) {
-			case Inspected::StartTag:
-				++currentDepth;
-				break;
-			case Inspected::EndTag:
-				--currentDepth;
-				break;
-			}
-		}
+		return !node.attribute(name).empty();
 	}
 
-	void XMLReader::nextStartElement()
+	std::string XMLReader::getAttribute(const pugi::xml_node& node, const char* name)
 	{
-		while (Inspect() && GetInspected() != Inspected::StartTag);
+		pugi::xml_attribute attr = node.attribute(name);
+		if (attr.empty())
+			throw std::string("missing attribute : ") + name;
+		return attr.as_string();
 	}
 
-	bool XMLReader::hasAttribute(const std::string& a_name)
+	std::string XMLReader::getAttribute(const pugi::xml_node& node, const char* name, const std::string& def)
 	{
-		for (int i = 0; i < GetAttributesCount(); ++i) {
-			auto attr = GetAttributeAt(i);
-			if (attr.Name == a_name)
-				return true;
-		}
-		return false;
+		pugi::xml_attribute attr = node.attribute(name);
+		if (attr.empty())
+			return def;
+		return attr.as_string();
 	}
 
-	std::string XMLReader::getAttribute(const std::string& a_name)
+	float XMLReader::getAttributeAsFloat(const pugi::xml_node& node, const char* name)
 	{
-		for (int i = 0; i < GetAttributesCount(); ++i) {
-			auto attr = GetAttributeAt(i);
-			if (attr.Name == a_name)
-				return attr.Value;
-		}
-		throw std::string("missing attribute : " + a_name);
+		return convertFloat(getAttribute(node, name));
 	}
 
-	std::string XMLReader::getAttribute(const std::string& a_name, const std::string& def)
+	int XMLReader::getAttributeAsInt(const pugi::xml_node& node, const char* name)
 	{
-		for (int i = 0; i < GetAttributesCount(); ++i) {
-			auto attr = GetAttributeAt(i);
-			if (attr.Name == a_name)
-				return attr.Value;
-		}
-		return def;
+		return convertInt(getAttribute(node, name));
 	}
 
-	float XMLReader::getAttributeAsFloat(const std::string& a_name)
+	bool XMLReader::getAttributeAsBool(const pugi::xml_node& node, const char* name)
 	{
-		return convertFloat(getAttribute(a_name));
+		return convertBool(getAttribute(node, name));
 	}
 
-	int XMLReader::getAttributeAsInt(const std::string& a_name)
+	std::string XMLReader::readText(const pugi::xml_node& node)
 	{
-		return convertInt(getAttribute(a_name));
+		return node.text().as_string();
 	}
 
-	bool XMLReader::getAttributeAsBool(const std::string& a_name)
+	float XMLReader::readFloat(const pugi::xml_node& node)
 	{
-		return convertBool(getAttribute(a_name));
+		return convertFloat(node.text().as_string());
 	}
 
-	std::string XMLReader::readText()
+	int XMLReader::readInt(const pugi::xml_node& node)
 	{
-		Inspect();
-		auto ret = GetValue();
-		skipCurrentElement();
-		return ret;
+		return convertInt(node.text().as_string());
 	}
 
-	float XMLReader::readFloat()
+	bool XMLReader::readBool(const pugi::xml_node& node)
 	{
-		Inspect();
-		auto ret = convertFloat(GetValue());
-		skipCurrentElement();
-		return ret;
+		return convertBool(node.text().as_string());
 	}
 
-	int XMLReader::readInt()
+	btVector3 XMLReader::readVector3(const pugi::xml_node& node)
 	{
-		Inspect();
-		auto ret = convertInt(GetValue());
-		skipCurrentElement();
-		return ret;
-	}
-
-	bool XMLReader::readBool()
-	{
-		Inspect();
-		auto ret = convertBool(GetValue());
-		skipCurrentElement();
-		return ret;
-	}
-
-	btVector3 XMLReader::readVector3()
-	{
-		float x = getAttributeAsFloat("x");
-		float y = getAttributeAsFloat("y");
-		float z = getAttributeAsFloat("z");
-		skipCurrentElement();
+		float x = getAttributeAsFloat(node, "x");
+		float y = getAttributeAsFloat(node, "y");
+		float z = getAttributeAsFloat(node, "z");
 		return btVector3(x, y, z);
 	}
 
-	btQuaternion XMLReader::readQuaternion()
+	btQuaternion XMLReader::readQuaternion(const pugi::xml_node& node)
 	{
-		float x = getAttributeAsFloat("x");
-		float y = getAttributeAsFloat("y");
-		float z = getAttributeAsFloat("z");
-		float w = getAttributeAsFloat("w");
-		skipCurrentElement();
+		float x = getAttributeAsFloat(node, "x");
+		float y = getAttributeAsFloat(node, "y");
+		float z = getAttributeAsFloat(node, "z");
+		float w = getAttributeAsFloat(node, "w");
 		btQuaternion q(x, y, z, w);
 		if (btFuzzyZero(q.length2()))
 			q = btQuaternion::getIdentity();
@@ -192,13 +131,12 @@ namespace hdt
 		return q;
 	}
 
-	btQuaternion XMLReader::readAxisAngle()
+	btQuaternion XMLReader::readAxisAngle(const pugi::xml_node& node)
 	{
-		float x = getAttributeAsFloat("x");
-		float y = getAttributeAsFloat("y");
-		float z = getAttributeAsFloat("z");
-		float w = getAttributeAsFloat("angle");
-		skipCurrentElement();
+		float x = getAttributeAsFloat(node, "x");
+		float y = getAttributeAsFloat(node, "y");
+		float z = getAttributeAsFloat(node, "z");
+		float w = getAttributeAsFloat(node, "angle");
 		btQuaternion q;
 		btVector3 axis(x, y, z);
 		if (axis.fuzzyZero()) {
@@ -210,22 +148,17 @@ namespace hdt
 		return q;
 	}
 
-	btTransform XMLReader::readTransform()
+	btTransform XMLReader::readTransform(const pugi::xml_node& node)
 	{
 		btTransform ret(btTransform::getIdentity());
-		while (Inspect()) {
-			switch (GetInspected()) {
-			case Inspected::StartTag:
-				if (GetName() == "basis")
-					ret.setRotation(readQuaternion());
-				else if (GetName() == "basis-axis-angle")
-					ret.setRotation(readAxisAngle());
-				else if (GetName() == "origin")
-					ret.setOrigin(readVector3());
-				break;
-			case Inspected::EndTag:
-				return ret;
-			}
+		for (auto child : node.children()) {
+			std::string name = child.name();
+			if (name == "basis")
+				ret.setRotation(readQuaternion(child));
+			else if (name == "basis-axis-angle")
+				ret.setRotation(readAxisAngle(child));
+			else if (name == "origin")
+				ret.setOrigin(readVector3(child));
 		}
 		return ret;
 	}

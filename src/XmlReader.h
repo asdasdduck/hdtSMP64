@@ -1,47 +1,35 @@
 #pragma once
 
-#include "XmlInspector/CharactersReader.hpp"
-#include "XmlInspector/XmlInspector.hpp"
+#include <pugixml.hpp>
 
 #include "hdtSkinnedMesh/hdtBulletHelper.h"
 
 namespace hdt
 {
-	class XMLReader : public Xml::Inspector<Xml::Encoding::Utf8Writer>
+	class XMLReader
 	{
-		typedef Inspector<Xml::Encoding::Utf8Writer> Base;
-		bool isEmptyStart;
+		pugi::xml_document m_doc;
 
 	public:
-		XMLReader(BYTE* data, size_t count) :
-			Base(data, data + count)
-		{
-		}
+		XMLReader(BYTE* data, size_t count);
 
-		typedef Xml::Inspected Inspected;
+		pugi::xml_node root() const;
 
-		bool Inspect();
-		Xml::Inspected GetInspected();
+		static bool hasAttribute(const pugi::xml_node& node, const char* name);
+		static std::string getAttribute(const pugi::xml_node& node, const char* name);
+		static std::string getAttribute(const pugi::xml_node& node, const char* name, const std::string& def);
+		static float getAttributeAsFloat(const pugi::xml_node& node, const char* name);
+		static int getAttributeAsInt(const pugi::xml_node& node, const char* name);
+		static bool getAttributeAsBool(const pugi::xml_node& node, const char* name);
 
-		void skipCurrentElement();
-		void nextStartElement();
+		static std::string readText(const pugi::xml_node& node);
+		static float readFloat(const pugi::xml_node& node);
+		static int readInt(const pugi::xml_node& node);
+		static bool readBool(const pugi::xml_node& node);
 
-		bool hasAttribute(const std::string& name);
-		std::string getAttribute(const std::string& name);
-		std::string getAttribute(const std::string& name, const std::string& def);
-
-		float getAttributeAsFloat(const std::string& name);
-		int getAttributeAsInt(const std::string& name);
-		bool getAttributeAsBool(const std::string& name);
-
-		std::string readText();
-		float readFloat();
-		int readInt();
-		bool readBool();
-
-		btVector3 readVector3();
-		btQuaternion readQuaternion();
-		btQuaternion readAxisAngle();
-		btTransform readTransform();
+		static btVector3 readVector3(const pugi::xml_node& node);
+		static btQuaternion readQuaternion(const pugi::xml_node& node);
+		static btQuaternion readAxisAngle(const pugi::xml_node& node);
+		static btTransform readTransform(const pugi::xml_node& node);
 	};
 }

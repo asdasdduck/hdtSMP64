@@ -31,66 +31,56 @@ namespace hdt
 	void DefaultBBP::loadDefaultBBPs()
 	{
 		auto path = "SKSE/Plugins/hdtSkinnedMeshConfigs/defaultBBPs.xml";
-
 		auto loaded = readAllFile(path);
 		if (loaded.empty())
 			return;
 
-		// Store original locale
 		char saved_locale[32];
 		strcpy_s(saved_locale, std::setlocale(LC_NUMERIC, nullptr));
-
-		// Set locale to en_US
 		std::setlocale(LC_NUMERIC, "en_US");
 
-		XMLReader reader((uint8_t*)loaded.data(), loaded.size());
+		try {
+			XMLReader reader((uint8_t*)loaded.data(), loaded.size());
+			auto root = reader.root();
+			if (std::string(root.name()) != "default-bbps")
+				return;
 
-		reader.nextStartElement();
-		if (reader.GetName() != "default-bbps")
-			return;
-
-		while (reader.Inspect()) {
-			if (reader.GetInspected() == Xml::Inspected::StartTag) {
-				if (reader.GetName() == "map") {
+			for (auto node : root.children()) {
+				std::string name = node.name();
+				if (name == "map") {
 					try {
-						auto shape = reader.getAttribute("shape");
-						auto file = reader.getAttribute("file");
+						auto shape = XMLReader::getAttribute(node, "shape");
+						auto file = XMLReader::getAttribute(node, "file");
 						bbpFileList.insert(std::make_pair(shape, file));
 					} catch (...) {
-						logger::warn("defaultBBP({},{}) : invalid map", reader.GetRow(), reader.GetColumn());
+						logger::warn("defaultBBP : invalid map");
 					}
-					reader.skipCurrentElement();
-				} else if (reader.GetName() == "remap") {
-					auto target = reader.getAttribute("target");
+				} else if (name == "remap") {
+					auto target = XMLReader::getAttribute(node, "target");
 					Remap remap = { target, {}, {} };
-					while (reader.Inspect()) {
-						if (reader.GetInspected() == Xml::Inspected::StartTag) {
-							if (reader.GetName() == "source") {
-								int priority = 0;
-								try {
-									priority = reader.getAttributeAsInt("priority");
-								} catch (...) {}
-								auto source = reader.readText();
-								remap.entries.insert({ priority, source });
-							} else if (reader.GetName() == "requires") {
-								auto req = reader.readText();
-								remap.required.insert(req);
-							} else {
-								logger::warn("defaultBBP({},{}) : unknown element", reader.GetRow(), reader.GetColumn());
-								reader.skipCurrentElement();
-							}
-						} else if (reader.GetInspected() == Xml::Inspected::EndTag) {
-							break;
+					for (auto child : node.children()) {
+						std::string childName = child.name();
+						if (childName == "source") {
+							int priority = 0;
+							try {
+								priority = XMLReader::getAttributeAsInt(child, "priority");
+							} catch (...) {}
+							auto source = XMLReader::readText(child);
+							remap.entries.insert({ priority, source });
+						} else if (childName == "requires") {
+							auto req = XMLReader::readText(child);
+							remap.required.insert(req);
+						} else {
+							logger::warn("defaultBBP : unknown element");
 						}
 					}
 					remaps.push_back(remap);
 				} else {
-					logger::warn("defaultBBP({},{}) : unknown element", reader.GetRow(), reader.GetColumn());
-					reader.skipCurrentElement();
+					logger::warn("defaultBBP : unknown element");
 				}
-			} else if (reader.GetInspected() == Xml::Inspected::EndTag) {
-				break;
 			}
+		} catch (const std::string& err) {
+			logger::error("xml parse error - {}", err.c_str());
 		}
 
 		// Restore original locale

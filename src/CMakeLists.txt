@@ -81,9 +81,6 @@ set(SOURCE_FILES
 	"${SOURCE_DIR}/hdtConvertNi.h"
 	"${SOURCE_DIR}/hdtSkyrimSystem.cpp"
 	"${SOURCE_DIR}/hdtSkyrimSystem.h"
-	"${SOURCE_DIR}/XmlInspector/CharactersReader.hpp"
-	"${SOURCE_DIR}/XmlInspector/CharactersWriter.hpp"
-	"${SOURCE_DIR}/XmlInspector/XmlInspector.hpp"
 	"${SOURCE_DIR}/XmlReader.h"
 	"${SOURCE_DIR}/XmlReader.cpp"
 	"${SOURCE_DIR}/NetImmerseUtils.h"
@@ -164,6 +161,7 @@ if(("${CommonLibSSEPath}" STREQUAL "CommonLibSSEPath-NOTFOUND") OR "${CommonLibS
 	add_subdirectory("$ENV{CommonLibSSEPath_NG}" CommonLibSSE EXCLUDE_FROM_ALL)
 endif()
 
+find_package(pugixml CONFIG REQUIRED)
 find_package(Bullet CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(xbyak REQUIRED CONFIG)
@@ -171,7 +169,8 @@ find_package(xbyak REQUIRED CONFIG)
 include_directories(${BULLET_INCLUDE_DIRS})
 
 target_link_libraries("${PROJECT_NAME}" PRIVATE CommonLibSSE::CommonLibSSE xbyak::xbyak spdlog::spdlog
-												${DETOURS_LIBRARY} ${BULLET_LIBRARIES})
+                                                pugixml::pugixml
+                                                ${DETOURS_LIBRARY} ${BULLET_LIBRARIES})
 
 target_precompile_headers("${PROJECT_NAME}" PRIVATE "${SOURCE_DIR}/PCH.h")
 

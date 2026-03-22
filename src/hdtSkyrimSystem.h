@@ -9,6 +9,8 @@
 #include "hdtSkyrimBody.h"
 #include "hdtSkyrimBone.h"
 
+#include <pugixml.hpp>
+
 namespace hdt
 {
 	class SkyrimSystem : public SkinnedMeshSystem
@@ -152,7 +154,6 @@ namespace hdt
 		RE::BSTSmartPointer<SkyrimSystem> m_mesh;
 		RE::NiNode* m_skeleton;
 		RE::NiAVObject* m_model;
-		XMLReader* m_reader;
 		std::unordered_map<RE::BSFixedString, RE::BSFixedString> m_renameMap;
 
 		RE::NiNode* findObjectByName(const RE::BSFixedString& name);
@@ -170,27 +171,27 @@ namespace hdt
 		std::pair<RE::BSTSmartPointer<SkyrimBody>, VertexOffsetMap> generateMeshBody(const std::string name, DefaultBBP::NameSet_t* names);
 
 		bool findBones(const RE::BSFixedString& bodyAName, const RE::BSFixedString& bodyBName, SkyrimBone*& bodyA, SkyrimBone*& bodyB);
-		bool parseFrameType(const std::string& name, FrameType& type, btTransform& frame);
+		bool parseFrameType(const std::string& name, FrameType& type, btTransform& frame, const pugi::xml_node& node);
 		static void calcFrame(FrameType type, const btTransform& frame, const btQsTransform& trA, const btQsTransform& trB, btTransform& frameA, btTransform& frameB);
-		void readFrameLerp(btTransform& tr);
-		void readBoneTemplate(BoneTemplate& dest);
-		void readGenericConstraintTemplate(GenericConstraintTemplate& dest);
-		void readStiffSpringConstraintTemplate(StiffSpringConstraintTemplate& dest);
-		void readConeTwistConstraintTemplate(ConeTwistConstraintTemplate& dest);
+		void readFrameLerp(btTransform& tr, const pugi::xml_node& node);
+		void readBoneTemplate(BoneTemplate& dest, const pugi::xml_node& node);
+		void readGenericConstraintTemplate(GenericConstraintTemplate& dest, const pugi::xml_node& node);
+		void readStiffSpringConstraintTemplate(StiffSpringConstraintTemplate& dest, const pugi::xml_node& node);
+		void readConeTwistConstraintTemplate(ConeTwistConstraintTemplate& dest, const pugi::xml_node& node);
 
 		const BoneTemplate& getBoneTemplate(const RE::BSFixedString& name);
 		const GenericConstraintTemplate& getGenericConstraintTemplate(const RE::BSFixedString& name);
 		const StiffSpringConstraintTemplate& getStiffSpringConstraintTemplate(const RE::BSFixedString& name);
 		const ConeTwistConstraintTemplate& getConeTwistConstraintTemplate(const RE::BSFixedString& name);
 
-		SkyrimBone* createBoneFromNodeName(const RE::BSFixedString& bodyName, const RE::BSFixedString& templateName = "", const bool readTemplate = false, SkyrimSystem* old_system = nullptr);
-		void readOrUpdateBone(SkyrimSystem* old_system = nullptr);
-		RE::BSTSmartPointer<SkyrimBody> readPerVertexShape(DefaultBBP::NameMap_t meshNameMap);
-		RE::BSTSmartPointer<SkyrimBody> readPerTriangleShape(DefaultBBP::NameMap_t* meshNameMap);
-		RE::BSTSmartPointer<Generic6DofConstraint> readGenericConstraint();
-		RE::BSTSmartPointer<StiffSpringConstraint> readStiffSpringConstraint();
-		RE::BSTSmartPointer<ConeTwistConstraint> readConeTwistConstraint();
-		RE::BSTSmartPointer<ConstraintGroup> readConstraintGroup();
-		std::shared_ptr<btCollisionShape> readShape();
+		SkyrimBone* createBoneFromNodeName(const RE::BSFixedString& bodyName, const RE::BSFixedString& templateName = "", const bool readTemplate = false, SkyrimSystem* old_system = nullptr, const pugi::xml_node& node = pugi::xml_node());
+		void readOrUpdateBone(const pugi::xml_node& node, SkyrimSystem* old_system = nullptr);
+		RE::BSTSmartPointer<SkyrimBody> readPerVertexShape(const pugi::xml_node& node, DefaultBBP::NameMap_t meshNameMap);
+		RE::BSTSmartPointer<SkyrimBody> readPerTriangleShape(const pugi::xml_node& node, DefaultBBP::NameMap_t* meshNameMap);
+		RE::BSTSmartPointer<Generic6DofConstraint> readGenericConstraint(const pugi::xml_node& node);
+		RE::BSTSmartPointer<StiffSpringConstraint> readStiffSpringConstraint(const pugi::xml_node& node);
+		RE::BSTSmartPointer<ConeTwistConstraint> readConeTwistConstraint(const pugi::xml_node& node);
+		RE::BSTSmartPointer<ConstraintGroup> readConstraintGroup(const pugi::xml_node& node);
+		std::shared_ptr<btCollisionShape> readShape(const pugi::xml_node& node);
 	};
 }
