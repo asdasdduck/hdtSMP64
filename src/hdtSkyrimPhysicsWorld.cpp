@@ -159,9 +159,8 @@ namespace hdt
 
 	void SkyrimPhysicsWorld::suspendSimulationUntilFinished(std::function<void(void)> process)
 	{
-		this->m_isStasis = true;
+		std::lock_guard<decltype(m_lock)> l(m_lock);
 		process();
-		this->m_isStasis = false;
 	}
 
 	btVector3 SkyrimPhysicsWorld::applyTranslationOffset()
