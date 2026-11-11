@@ -1,4 +1,7 @@
 #include "PluginInterfaceImpl.h"
+#include "ActorManager.h"
+#include "ExternalOwner.h"
+#include "dhdtPapyrusFunctions.h"
 
 hdt::PluginInterfaceImpl hdt::g_pluginInterface;
 
@@ -28,6 +31,66 @@ void hdt::PluginInterfaceImpl::removeListener(IPostStepListener* l)
 	if (l) {
 		m_postStepDispatcher.RemoveEventSink(l);
 	}
+}
+
+void hdt::PluginInterfaceImpl::addMeshOwner(IMeshOwner* owner, const MeshOwnerInfo& info)
+{
+	ExternalOwnerRegistry::instance().addOwner(owner, info);
+}
+
+void hdt::PluginInterfaceImpl::removeMeshOwner(IMeshOwner* owner)
+{
+	// Waits out a claim or release the Papyrus VM thread is running on this owner, so the plugin can unload it safely.
+	const auto lock = ActorManager::instance()->lockGuard();
+	for (const std::uint32_t formId : ExternalOwnerRegistry::instance().removeOwner(owner)) {
+		// The actor's meshes lost their claim without a system; rebuild them so hdtSMP64 or another owner takes over.
+		SKSE::GetTaskInterface()->AddTask([formId] {
+			if (auto* actor = RE::TESForm::LookupByID<RE::Actor>(formId)) {
+				papyrus::impl::ResetPhysicsImpl(actor, false);
+			}
+		});
+	}
+}
+
+void hdt::PluginInterfaceImpl::relinquishMesh(IMeshOwner* owner, std::uint64_t claimToken)
+{
+	const auto relinquished = ExternalOwnerRegistry::instance().relinquish(owner, claimToken);
+	if (!relinquished || relinquished->actorFormId == 0) {
+		return;
+	}
+
+	SKSE::GetTaskInterface()->AddTask([formId = relinquished->actorFormId] {
+		auto& registry = ExternalOwnerRegistry::instance();
+		// An earlier task for this actor may already have rebuilt it with every waiting skip.
+		if (!registry.beginRelinquishedReload(formId)) {
+			return;
+		}
+
+		// Ends the bracket even if the reload throws, or the owner stays skipped for this actor.
+		struct Bracket
+		{
+			ExternalOwnerRegistry& registry;
+			std::uint32_t formId;
+			~Bracket() { registry.endRelinquishedReload(formId); }
+		} bracket{ registry, formId };
+
+		if (auto* actor = RE::TESForm::LookupByID<RE::Actor>(formId)) {
+			papyrus::impl::ResetPhysicsImpl(actor, false);
+		}
+	});
+}
+
+void hdt::PluginInterfaceImpl::reloadActorPhysics(RE::Actor* actor)
+{
+	if (!actor) {
+		return;
+	}
+
+	SKSE::GetTaskInterface()->AddTask([handle = RE::ActorHandle(actor)] {
+		if (auto a = handle.get()) {
+			papyrus::impl::ResetPhysicsImpl(a.get(), false);
+		}
+	});
 }
 
 void hdt::PluginInterfaceImpl::onPostPostLoad()
