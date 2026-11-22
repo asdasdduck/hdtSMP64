@@ -69,8 +69,8 @@ namespace hdt
 
 			RE::BSTSmartPointer<SkyrimSystem> m_physics;
 			// Shared so copies of an item (vector growth, console snapshots) do not release the claim early;
-			// the last copy does.
-			std::shared_ptr<ExternalClaim> m_claim;
+			// the last copy calls IMeshClaim::release.
+			std::shared_ptr<IMeshClaim> m_claim;
 			bool m_hasDynamicPhysics = false;
 		};
 

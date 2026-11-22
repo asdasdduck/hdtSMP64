@@ -756,11 +756,10 @@ namespace hdt
 
 		if (skeleton) {
 			const SkyrimMeshClaimContext context(kind, skeleton, model, physicsFile.first.c_str(), renameMap);
-			const auto* ref = skeleton->GetUserData();
-			ExternalClaim claim = ExternalOwnerRegistry::instance().tryClaim(context, ref ? ref->GetFormID() : 0);
-			if (claim.active()) {
-				logger::info("External mesh owner {} took over physics file {}.", claim.ownerName(), physicsFile.first.c_str());
-				m_claim = std::make_shared<ExternalClaim>(std::move(claim));
+			std::string ownerName;
+			m_claim = ExternalOwnerRegistry::instance().tryClaim(context, &ownerName);
+			if (m_claim) {
+				logger::info("External mesh owner {} took over physics file {}.", ownerName, physicsFile.first.c_str());
 				return nullptr;
 			}
 		}

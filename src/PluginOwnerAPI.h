@@ -43,6 +43,20 @@ namespace hdt
 		virtual const char* getMergedBoneName(const char* originalName) const = 0;
 	};
 
+	// @brief One mesh an owner took over, allocated by the owner and returned from IMeshOwner::claim.
+	// @details The owner keeps its per-mesh state in it. hdtSMP64 holds the pointer until it calls release, exactly
+	// once, when it is done with the mesh: the mesh was rebuilt, its actor unloaded, or physics was reset. release
+	// always runs before the same mesh is offered to the owners again. The owner frees the object in release (or
+	// later, if another of its threads still uses it) and must not free it before.
+	class IMeshClaim
+	{
+	public:
+		virtual void release() = 0;
+
+	protected:
+		~IMeshClaim() = default;
+	};
+
 	// @brief Identity and ordering of one mesh owner, given to PluginInterface::addMeshOwner.
 	// @details hdtSMP64 copies the name, so it only has to stay valid for the call.
 	struct MeshOwnerInfo
@@ -57,24 +71,19 @@ namespace hdt
 
 	// @brief Implemented by a plugin that takes over simulation of specific hdtSMP64 meshes.
 	// @details Several owners may be registered. For each mesh hdtSMP64 is about to simulate it asks them in
-	// priority order and the first one whose claim returns true wins; if none does, hdtSMP64 simulates the mesh
-	// itself. A claim is sticky: it holds until release, an actor reload, or PluginInterface::relinquishMesh, so
-	// a later or higher-priority owner never takes a mesh away mid-session. It is asked again the next time the
-	// mesh is created.
-	// claim and release run on the game main thread or the Papyrus VM thread, serialized by hdtSMP64's
-	// actor manager lock. Implementations must not throw and must not call back into hdtSMP64 except to register
-	// or unregister owners, or to relinquish a mesh.
+	// priority order and the first one whose claim returns a claim object wins; if none does, hdtSMP64 simulates
+	// the mesh itself. A claim is sticky: it holds until hdtSMP64 releases it, so a later or higher-priority owner
+	// never takes a mesh away mid-session. The mesh is offered again the next time it is created.
+	// To hand a mesh back, decline it in claim and call PluginInterface::reloadActorPhysics for its actor.
+	// claim and release run on the game main thread or the Papyrus VM thread, serialized by hdtSMP64's actor manager
+	// lock. Implementations must not throw and must not call back into hdtSMP64.
 	class IMeshOwner
 	{
 	public:
 		virtual ~IMeshOwner() = default;
 
-		// @brief Returning true takes ownership of the described mesh; hdtSMP64 then creates no system for it.
-		// @param claimToken Identifies this claim and is passed to the matching release.
-		virtual bool claim(const IMeshClaimContext& context, std::uint64_t claimToken) = 0;
-
-		// @brief hdtSMP64 is done with the claim (the mesh was rebuilt, its actor unloaded, or physics reset).
-		// Not called for a claim the owner gave back with relinquishMesh, nor after the owner was removed.
-		virtual void release(std::uint64_t claimToken) = 0;
+		// @brief Returning a claim object takes ownership of the described mesh; hdtSMP64 then creates no system for
+		// it. Returning nullptr declines.
+		virtual IMeshClaim* claim(const IMeshClaimContext& context) = 0;
 	};
 }

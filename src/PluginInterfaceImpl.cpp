@@ -40,44 +40,10 @@ void hdt::PluginInterfaceImpl::addMeshOwner(IMeshOwner* owner, const MeshOwnerIn
 
 void hdt::PluginInterfaceImpl::removeMeshOwner(IMeshOwner* owner)
 {
-	// Waits out a claim or release the Papyrus VM thread is running on this owner, so the plugin can unload it safely.
+	// Claims run under the actor manager lock, also on the Papyrus VM thread. Taking it waits out a claim in progress,
+	// so the owner is not asked again once this returns.
 	const auto lock = ActorManager::instance()->lockGuard();
-	for (const std::uint32_t formId : ExternalOwnerRegistry::instance().removeOwner(owner)) {
-		// The actor's meshes lost their claim without a system; rebuild them so hdtSMP64 or another owner takes over.
-		SKSE::GetTaskInterface()->AddTask([formId] {
-			if (auto* actor = RE::TESForm::LookupByID<RE::Actor>(formId)) {
-				papyrus::impl::ResetPhysicsImpl(actor, false);
-			}
-		});
-	}
-}
-
-void hdt::PluginInterfaceImpl::relinquishMesh(IMeshOwner* owner, std::uint64_t claimToken)
-{
-	const auto relinquished = ExternalOwnerRegistry::instance().relinquish(owner, claimToken);
-	if (!relinquished || relinquished->actorFormId == 0) {
-		return;
-	}
-
-	SKSE::GetTaskInterface()->AddTask([formId = relinquished->actorFormId] {
-		auto& registry = ExternalOwnerRegistry::instance();
-		// An earlier task for this actor may already have rebuilt it with every waiting skip.
-		if (!registry.beginRelinquishedReload(formId)) {
-			return;
-		}
-
-		// Ends the bracket even if the reload throws, or the owner stays skipped for this actor.
-		struct Bracket
-		{
-			ExternalOwnerRegistry& registry;
-			std::uint32_t formId;
-			~Bracket() { registry.endRelinquishedReload(formId); }
-		} bracket{ registry, formId };
-
-		if (auto* actor = RE::TESForm::LookupByID<RE::Actor>(formId)) {
-			papyrus::impl::ResetPhysicsImpl(actor, false);
-		}
-	});
+	ExternalOwnerRegistry::instance().removeOwner(owner);
 }
 
 void hdt::PluginInterfaceImpl::reloadActorPhysics(RE::Actor* actor)

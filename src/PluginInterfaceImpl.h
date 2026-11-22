@@ -23,7 +23,6 @@ namespace hdt
 
 		virtual void addMeshOwner(IMeshOwner* owner, const MeshOwnerInfo& info) override;
 		virtual void removeMeshOwner(IMeshOwner* owner) override;
-		virtual void relinquishMesh(IMeshOwner* owner, std::uint64_t claimToken) override;
 
 		virtual void reloadActorPhysics(RE::Actor* actor) override;
 

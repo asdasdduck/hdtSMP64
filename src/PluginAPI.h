@@ -86,19 +86,13 @@ namespace hdt
 		// MeshOwnerInfo::priority and then by registration order. Ignores null and already registered owners.
 		virtual void addMeshOwner(IMeshOwner*, const MeshOwnerInfo&) = 0;
 
-		// @brief Unregisters an owner. Call it from the game main thread, never concurrently with an owner callback.
-		// Its claims end without release callbacks, and hdtSMP64 rebuilds the affected actors on the main thread so it
-		// or another owner takes those meshes over.
+		// @brief Unregisters an owner; it is not asked to claim again once this returns. Call it from the game main
+		// thread, never from inside claim or release. Its live claims stay valid and are released as usual; to hand
+		// their meshes back now, call reloadActorPhysics for their actors.
 		virtual void removeMeshOwner(IMeshOwner*) = 0;
 
-		// @brief Hands a claimed mesh back, for example after the owner lost its GPU device. hdtSMP64 rebuilds the
-		// claim's actor on the main thread and simulates the mesh itself, and does not ask this owner about that
-		// mesh and actor again during that rebuild. Later rebuilds ask it again. Safe to call from any thread;
-		// ignored if the token is not a live claim of this owner, which includes the token of a claim call still in progress.
-		// The owner gets no release call for the token.
-		virtual void relinquishMesh(IMeshOwner*, std::uint64_t claimToken) = 0;
-
-		// @brief Re-runs the soft reload for an actor, so every one of its meshes asks the mesh owners again.
+		// @brief Re-runs the soft reload for an actor, so every one of its meshes is released and offered to the mesh
+		// owners again. An owner hands a mesh back by declining it in claim before calling this.
 		// Call it from the game main thread.
 		virtual void reloadActorPhysics(RE::Actor*) = 0;
 	};
